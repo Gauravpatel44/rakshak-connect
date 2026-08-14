@@ -1,0 +1,82 @@
+name: sos_app
+description: "Rakshak Connect – Smart Emergency Response & Government Assistance System"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.3
+  firebase_storage: ^12.3.2
+  firebase_messaging: ^15.1.3
+
+  # Maps & Location
+  google_maps_flutter: ^2.9.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^13.0.1
+
+  # URL & Permissions
+  url_launcher: ^6.3.1
+  permission_handler: ^11.3.1
+  flutter_contacts: ^1.1.9+2
+
+  # State Management
+  provider: ^6.1.2
+
+  # Local Storage
+  shared_preferences: ^2.3.3
+
+  # Animations
+  flutter_animate: ^4.5.0
+
+  # Utilities
+  intl: ^0.20.2
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  # Image compression for Base64 Firestore photo storage (no Firebase Storage needed)
+  flutter_image_compress: ^2.3.0
+  audioplayers: ^6.1.0
+  torch_light: ^1.0.0
+  record: ^5.2.0
+  path_provider: ^2.1.5
+  home_widget: ^0.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+dependency_overrides:
+  record_platform_interface: 1.1.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+  web:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icons/app_icon.png"

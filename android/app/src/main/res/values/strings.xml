@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rakshak Connect</string>
+    <string name="widget_sos_btn">EMERGENCY SOS</string>
+    <string name="widget_siren_btn">SIREN</string>
+    <string name="widget_fake_call_btn">FAKE CALL</string>
+    <string name="widget_description">1-Tap Emergency SOS, Panic Siren, and Fake Call quick actions</string>
+</resources>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "882373163395",
+    "project_id": "sosapp-96931",
+    "storage_bucket": "sosapp-96931.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:882373163395:android:e0ba442e0bb23a12891eb6",
+        "android_client_info": {
+          "package_name": "com.gaurav.rakshak_connect"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXHlMHcVsQTuugB9sO-MJlzZAeeHXUd_0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,25 @@
+{
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "sosapp-96931",
+                    "appId": "1:882373163395:android:e0ba442e0bb23a12891eb6",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "sosapp-96931",
+                    "configurations": {
+                        "android": "1:882373163395:android:e0ba442e0bb23a12891eb6",
+                        "ios": "1:882373163395:ios:579a44a54d342766891eb6",
+                        "macos": "1:882373163395:ios:579a44a54d342766891eb6",
+                        "web": "1:882373163395:web:918c98a43e53fb32891eb6",
+                        "windows": "1:882373163395:web:92bcc44d114364d8891eb6"
+                    }
+                }
+            }
+        }
+    }
+}

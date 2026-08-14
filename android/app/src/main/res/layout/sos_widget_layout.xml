@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/sos_widget_background"
+    android:orientation="vertical"
+    android:paddingLeft="14dp"
+    android:paddingTop="12dp"
+    android:paddingRight="14dp"
+    android:paddingBottom="12dp">
+
+    <!-- ── Header Bar ────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🛡️ RAKSHAK CONNECT"
+            android:textColor="#F8FAFC"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="● Ready"
+            android:textColor="#4ADE80"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- ── Main 1-Tap SOS Button ─────────────────────────────── -->
+    <Button
+        android:id="@+id/btn_widget_sos"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/sos_widget_sos_btn_bg"
+        android:gravity="center"
+        android:text="🚨 1-TAP EMERGENCY SOS"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- ── Secondary Quick Action Buttons ────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn_widget_siren"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginRight="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/sos_widget_action_btn_bg"
+            android:gravity="center"
+            android:text="📢 SIREN"
+            android:textColor="#E2E8F0"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_widget_fake_call"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginLeft="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/sos_widget_action_btn_bg"
+            android:gravity="center"
+            android:text="📞 FAKE CALL"
+            android:textColor="#E2E8F0"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>
