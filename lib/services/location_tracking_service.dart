@@ -29,10 +29,10 @@ class LocationTrackingService {
 
     _positionSub?.cancel();
 
-    // Android & iOS high accuracy settings with 5m displacement filter
+    // Android & iOS high accuracy settings with 10m displacement filter
     const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 5, // Update every 5 meters
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, // Update every 10 meters for optimal battery & tracking balance
     );
 
     _positionSub = Geolocator.getPositionStream(
@@ -108,10 +108,10 @@ class LocationTrackingService {
         }
       }, SetOptions(merge: true));
 
-      // 2. If an active SOS alert ID is provided, record to alert's breadcrumb subcollection
+      // 2. If an active SOS alert ID is provided, record to emergency_alerts breadcrumb subcollection
       if (alertId != null && alertId.isNotEmpty) {
         await _firestore
-            .collection('alerts')
+            .collection('emergency_alerts')
             .doc(alertId)
             .collection('breadcrumbs')
             .add(point.toMap());
@@ -124,7 +124,7 @@ class LocationTrackingService {
   /// Stream breadcrumbs for a given active alert from Firestore (for emergency contacts)
   Stream<List<BreadcrumbModel>> streamAlertBreadcrumbs(String alertId) {
     return _firestore
-        .collection('alerts')
+        .collection('emergency_alerts')
         .doc(alertId)
         .collection('breadcrumbs')
         .orderBy('timestamp', descending: false)

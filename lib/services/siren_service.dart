@@ -3,6 +3,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:torch_light/torch_light.dart';
+import 'siren_notification_service.dart';
 
 /// Handles emergency siren audio playback and hardware flashlight strobing
 class SirenService {
@@ -15,8 +16,10 @@ class SirenService {
   bool _isSirenActive = false;
   bool get isSirenActive => _isSirenActive;
 
-  // Emergency Siren audio stream URL (police/ambulance high-decibel alarm)
-  static const String _sirenAudioUrl =
+  // Bundled offline siren audio (works with zero internet).
+  // Falls back to the remote URL only if the asset is unavailable.
+  static const String _sirenAssetPath = 'audio/siren.mp3';
+  static const String _sirenFallbackUrl =
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
   Future<void> init() async {
@@ -35,12 +38,22 @@ class SirenService {
   }) async {
     _isSirenActive = true;
 
-    // 1. Audio Siren
+    // Show persistent notification with Stop button in the notification shade
+    await SirenNotificationService.showSirenNotification();
+
+    // 1. Audio Siren — offline-first: bundled asset, then network fallback
     if (soundEnabled) {
       try {
         await _audioPlayer.setReleaseMode(ReleaseMode.loop);
         await _audioPlayer.setVolume(1.0);
-        await _audioPlayer.play(UrlSource(_sirenAudioUrl));
+        // Try bundled asset first (no internet needed)
+        try {
+          await _audioPlayer.play(AssetSource(_sirenAssetPath));
+        } catch (_) {
+          // Asset unavailable — fall back to network stream
+          debugPrint('⚠️ SirenService: Asset unavailable, falling back to URL.');
+          await _audioPlayer.play(UrlSource(_sirenFallbackUrl));
+        }
       } catch (e) {
         debugPrint('⚠️ SirenService: Failed to play audio siren: $e');
       }
@@ -85,7 +98,9 @@ class SirenService {
   Future<void> stopAlarm() async {
     _isSirenActive = false;
 
-    // Stop timers
+    // Dismiss the persistent notification
+    await SirenNotificationService.dismissSirenNotification();
+
     _strobeTimer?.cancel();
     _strobeTimer = null;
     _vibrateTimer?.cancel();

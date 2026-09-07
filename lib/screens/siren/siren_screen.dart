@@ -4,6 +4,7 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/contact_provider.dart';
+import '../../services/siren_notification_service.dart';
 import '../../services/siren_service.dart';
 
 /// Full-screen emergency Panic Siren & Flashlight Strobe screen
@@ -30,17 +31,27 @@ class _SirenScreenState extends State<SirenScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _sirenService.init();
+    // Controller starts STOPPED — it only runs when the siren is active.
+    // This avoids continuous 60fps Scaffold rebuilds while the screen is idle
+    // (which was contributing to jank during the Android Home transition).
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
+    );
+
+    // Register the stop callback so tapping "Stop Siren" in the notification
+    // panel calls _stopFromNotification even when the screen is not focused.
+    SirenNotificationService.registerStopCallback(_stopFromNotification);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    // Only stop the siren when the app is fully paused (minimized / screen off).
+    // We deliberately ignore [AppLifecycleState.inactive] so the alarm keeps
+    // playing while the notification shade is pulled down.
+    if (state == AppLifecycleState.paused) {
       if (_isActive) {
+        _pulseController.stop(); // stop animation before OS captures window
         _sirenService.stopAlarm();
         if (mounted) setState(() => _isActive = false);
       }
@@ -50,17 +61,34 @@ class _SirenScreenState extends State<SirenScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    SirenNotificationService.unregisterStopCallback();
     _sirenService.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
+  /// Called by [SirenNotificationService] when the user taps "Stop Siren"
+  /// in the notification shade and the app is brought back to foreground.
+  Future<void> _stopFromNotification() async {
+    if (!mounted) return;
+    if (_isActive) {
+      _pulseController.stop();
+      await _sirenService.stopAlarm();
+      if (mounted) setState(() => _isActive = false);
+    }
+  }
+
   Future<void> _toggleSiren() async {
     if (_isActive) {
+      // Stop animation immediately so no frames are produced while
+      // the siren service shuts down audio/torch.
+      _pulseController.stop();
       await _sirenService.stopAlarm();
       setState(() => _isActive = false);
     } else {
       setState(() => _isActive = true);
+      // Start the pulse animation only now that the siren is actually active.
+      _pulseController.repeat(reverse: true);
       await _sirenService.startAlarm(
         soundEnabled: _soundEnabled,
         torchEnabled: _torchEnabled,

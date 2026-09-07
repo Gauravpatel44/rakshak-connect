@@ -91,21 +91,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 24),
 
-                const Text(
+                Text(
                   'Forgot Your Password?',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
 
                 const SizedBox(height: 8),
 
-                const Text(
+                Text(
                   'Enter your registered email and we\'ll send you a link to reset your password.',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withAlpha(153),
                     fontSize: 14,
                     height: 1.5,
                   ),

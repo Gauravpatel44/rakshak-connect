@@ -134,17 +134,6 @@ class ProfileScreen extends StatelessWidget {
             _ProfileSection(
               title: 'Support',
               items: [
-                // Bug #22 fix: show informative dialogs instead of no-op
-                _ProfileItem(
-                  icon: Icons.help_outline_rounded,
-                  label: AppStrings.helpSupport,
-                  onTap: () => _showInfoDialog(
-                    context,
-                    title: AppStrings.helpSupport,
-                    message:
-                        'For support, please email:\nrakshakconnect@support.com\n\nOr call our helpline: 1800-XXX-XXXX',
-                  ),
-                ),
                 _ProfileItem(
                   icon: Icons.info_outline_rounded,
                   label: AppStrings.aboutUs,
@@ -152,7 +141,7 @@ class ProfileScreen extends StatelessWidget {
                     context,
                     title: AppStrings.aboutUs,
                     message:
-                        'Rakshak Connect v1.0.0\n\nSmart Emergency Response & Government Assistance System.\n\nBuilt to keep you safe.',
+                        'Rakshak Connect v1.0.0\n\nSmart Emergency Response & Government Assistance System.\n\nBuilt to keep you safe\n\nDeveloped by Gaurav Patel and Kush Ahir.',
                   ),
                 ),
               ],

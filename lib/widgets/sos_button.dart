@@ -97,19 +97,23 @@ class _SosButtonState extends State<SosButton>
                 alignment: Alignment.center,
                 children: [
                   // ── Ripple Rings ──────────────────────────────
+                  // Opacity widgets are replaced with Color.withAlpha() baked
+                  // directly into each Container's fill — identical visual
+                  // result, but eliminates 3 expensive offscreen compositing
+                  // layers that Opacity requires the raster thread to allocate
+                  // on every animation frame.
                   for (int i = 0; i < 3; i++)
-                    Opacity(
-                      opacity: _ringOpacity[i].value.clamp(0.0, 1.0),
-                      child: Transform.scale(
-                        scale: _ringScale[i].value,
-                        child: Container(
-                          width: 160 + (i * 18).toDouble(),
-                          height: 160 + (i * 18).toDouble(),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primary.withAlpha(
-                              ((0.18 - i * 0.04) * 255).round(),
-                            ),
+                    Transform.scale(
+                      scale: _ringScale[i].value,
+                      child: Container(
+                        width: 160 + (i * 18).toDouble(),
+                        height: 160 + (i * 18).toDouble(),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary.withAlpha(
+                            // Combine the ring's base alpha with its fade-out
+                            (((0.18 - i * 0.04) * _ringOpacity[i].value.clamp(0.0, 1.0)) * 255)
+                                .round(),
                           ),
                         ),
                       ),

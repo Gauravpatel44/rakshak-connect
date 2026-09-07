@@ -6,6 +6,7 @@ import '../../constants/app_strings.dart';
 import '../../localization/app_localizations.dart';
 import '../../providers/locale_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../widgets/terms_and_conditions_dialog.dart';
 
 /// Settings screen with dark mode, notifications, language selection, and info links
 class SettingsScreen extends StatelessWidget {
@@ -63,23 +64,19 @@ class SettingsScreen extends StatelessWidget {
               _NavTile(
                 icon: Icons.policy_rounded,
                 label: AppStrings.privacyPolicy,
-                // BUG-20 fix: show policy content instead of no-op
-                onTap: () => _showInfoDialog(
+                onTap: () => TermsAndConditionsDialog.show(
                   context,
-                  title: AppStrings.privacyPolicy,
-                  message:
-                      'Rakshak Connect collects your name, email, phone, and GPS location solely to send emergency alerts to your saved contacts.\n\nWe do not sell your data. All data is encrypted and stored securely in Firebase.\n\nFor queries: rakshakconnect@support.com',
+                  initialTab: 1,
+                  showAcceptButton: false,
                 ),
               ),
               _NavTile(
                 icon: Icons.description_rounded,
                 label: AppStrings.termsConditions,
-                // BUG-20 fix: show terms content instead of no-op
-                onTap: () => _showInfoDialog(
+                onTap: () => TermsAndConditionsDialog.show(
                   context,
-                  title: AppStrings.termsConditions,
-                  message:
-                      'By using Rakshak Connect you agree to:\n\n• Use the SOS feature only in genuine emergencies.\n• Keep your emergency contacts list up to date.\n• Not misuse the platform for false alarms.\n\nMisuse may result in account suspension.',
+                  initialTab: 0,
+                  showAcceptButton: false,
                 ),
               ),
               _NavTile(
@@ -102,25 +99,6 @@ class SettingsScreen extends StatelessWidget {
       applicationVersion: '1.0.0',
       applicationLegalese:
           '© 2024 Rakshak Connect. All rights reserved.\nBuilt with Flutter & Firebase.',
-    );
-  }
-
-  // BUG-20 fix: generic info dialog reused for Privacy Policy, Terms, etc.
-  void _showInfoDialog(BuildContext context,
-      {required String title, required String message}) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(title),
-        content: SingleChildScrollView(child: Text(message)),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
     );
   }
 }

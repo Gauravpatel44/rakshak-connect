@@ -4,17 +4,19 @@ import 'package:flutter/material.dart';
 /// Uses Material + Ink for hardware-accelerated ripple; no custom shadows.
 class EmergencyCard extends StatelessWidget {
   final String title;
-  final IconData icon;
+  final IconData? icon;
+  final Widget? customIcon;
   final Color color;
   final VoidCallback onTap;
 
   const EmergencyCard({
     super.key,
     required this.title,
-    required this.icon,
+    this.icon,
+    this.customIcon,
     required this.color,
     required this.onTap,
-  });
+  }) : assert(icon != null || customIcon != null, 'Either icon or customIcon must be provided');
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +46,9 @@ class EmergencyCard extends StatelessWidget {
                       color: color.withAlpha(25),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(icon, color: color, size: 28),
+                    child: Center(
+                      child: customIcon ?? Icon(icon!, color: color, size: 28),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Text(

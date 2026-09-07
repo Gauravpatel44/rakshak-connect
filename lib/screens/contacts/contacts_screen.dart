@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_routes.dart';
 import '../../constants/app_strings.dart';
@@ -24,6 +25,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
   // BUG-15 fix: debounce timer to prevent filter running on every keystroke
   Timer? _searchDebounce;
 
+  static const String _prefKeyDontShowFavoriteDialog =
+      'dont_show_favorite_whatsapp_dialog';
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +41,141 @@ class _ContactsScreenState extends State<ContactsScreen> {
     _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleToggleFavorite(
+      BuildContext context, ContactModel contact) async {
+    final contactProvider = context.read<ContactProvider>();
+
+    // If already favorite, toggle off without showing confirmation
+    if (contact.isFavorite) {
+      await contactProvider.toggleFavorite(contact);
+      return;
+    }
+
+    // Check if user previously chose "Don't show again"
+    final prefs = await SharedPreferences.getInstance();
+    final dontShow = prefs.getBool(_prefKeyDontShowFavoriteDialog) ?? false;
+
+    if (dontShow) {
+      await contactProvider.toggleFavorite(contact);
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    // Show popup explaining WhatsApp SOS routing with "Don't show again" checkbox
+    bool dontShowAgain = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Row(
+            children: [
+              Icon(Icons.star_rounded, color: Color(0xFFFFB300), size: 26),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Set as Favorite',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RichText(
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.4,
+                    color: Theme.of(dialogCtx).colorScheme.onSurface,
+                  ),
+                  children: [
+                    const TextSpan(
+                      text: 'WhatsApp SOS alerts will only be sent to ',
+                    ),
+                    TextSpan(
+                      text: contact.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const TextSpan(
+                      text:
+                          ' during an emergency.\n\nSMS emergency alerts will continue to be sent to all your emergency contacts.',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: () {
+                  setDialogState(() {
+                    dontShowAgain = !dontShowAgain;
+                  });
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: Checkbox(
+                          value: dontShowAgain,
+                          activeColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          onChanged: (val) {
+                            setDialogState(() {
+                              dontShowAgain = val ?? false;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "Don't show again",
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Set Favorite'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      if (dontShowAgain) {
+        await prefs.setBool(_prefKeyDontShowFavoriteDialog, true);
+      }
+      await contactProvider.toggleFavorite(contact);
+    }
   }
 
   void _confirmDelete(BuildContext context, ContactModel contact) {
@@ -214,7 +353,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         ),
                         onDelete: () => _confirmDelete(context, contacts[i]),
                         onToggleFavorite: () =>
-                            context.read<ContactProvider>().toggleFavorite(contacts[i]),
+                            _handleToggleFavorite(context, contacts[i]),
                       ),
                     ),
             ),

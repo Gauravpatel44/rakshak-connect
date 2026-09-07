@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/contact_model.dart';
 import '../models/alert_model.dart';
+import '../models/contact_model.dart';
+import '../models/medical_profile_model.dart';
 import '../models/user_model.dart';
 
 /// Handles all Firestore CRUD operations for Rakshak Connect
@@ -18,7 +19,7 @@ class FirestoreService {
   // ════════════════════════════════════════════
 
   /// Save or update medical profile
-  Future<void> saveMedicalProfile(dynamic profile) async {
+  Future<void> saveMedicalProfile(MedicalProfileModel profile) async {
     await _medicalProfiles
         .doc(profile.userId)
         .set(profile.toMap(), SetOptions(merge: true));

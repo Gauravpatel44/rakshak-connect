@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import '../../constants/app_strings.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/loading_overlay.dart';
+import '../../widgets/terms_and_conditions_dialog.dart';
 
 /// Registration screen for new Rakshak Connect users
 class RegisterScreen extends StatefulWidget {
@@ -23,18 +25,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  late final TapGestureRecognizer _termsRecognizer;
+  late final TapGestureRecognizer _privacyRecognizer;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _agreedToTerms = false;
 
   @override
+  void initState() {
+    super.initState();
+    _termsRecognizer = TapGestureRecognizer()
+      ..onTap = () => _showTermsDialog(initialTab: 0);
+    _privacyRecognizer = TapGestureRecognizer()
+      ..onTap = () => _showTermsDialog(initialTab: 1);
+  }
+
+  @override
   void dispose() {
+    _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _showTermsDialog({int initialTab = 0}) {
+    TermsAndConditionsDialog.show(
+      context,
+      initialTab: initialTab,
+      showAcceptButton: true,
+      onAccepted: () {
+        if (!_agreedToTerms) {
+          setState(() => _agreedToTerms = true);
+        }
+      },
+    );
   }
 
   Future<void> _register() async {
@@ -84,7 +112,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       isLoading: auth.isLoading,
       message: 'Creating account...',
       child: Scaffold(
-        backgroundColor: AppColors.background,
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -98,20 +125,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // ── Header ──────────────────────────────────
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Text(
                         AppStrings.createAccount,
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Text(
                         AppStrings.registerSubtitle,
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withAlpha(153),
                           fontSize: 14,
                         ),
                       ),
@@ -214,17 +244,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   // ── Terms Checkbox ───────────────────────────
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Checkbox(
                         value: _agreedToTerms,
                         onChanged: (v) =>
                             setState(() => _agreedToTerms = v ?? false),
                         activeColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
-                      const Expanded(
-                        child: Text(
-                          AppStrings.agreeTerms,
-                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            text: 'I agree to the ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withAlpha(170),
+                            ),
+                            children: [
+                              TextSpan(
+                                text: 'Terms & Conditions',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                recognizer: _termsRecognizer,
+                              ),
+                              const TextSpan(text: ' and '),
+                              TextSpan(
+                                text: 'Privacy Policy',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                recognizer: _privacyRecognizer,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -248,9 +311,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
+                        Text(
                           AppStrings.alreadyHaveAccount,
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withAlpha(153),
+                          ),
                         ),
                         GestureDetector(
                           onTap: () => Navigator.of(context).pop(),

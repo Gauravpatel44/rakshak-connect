@@ -22,6 +22,7 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
   final SmsService _smsService = SmsService();
   late AnimationController _pulseController;
   bool _autoFollow = true;
+  LatLng? _lastCenteredPoint;
 
   @override
   void initState() {
@@ -81,16 +82,23 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
     final location = context.watch<LocationProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Auto-center map if user enabled autoFollow and position updates
+    // Auto-center map if user enabled autoFollow and position has actually changed
     if (_autoFollow && location.hasLocation) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && location.latitude != null && location.longitude != null) {
-          _mapController.move(
-            LatLng(location.latitude!, location.longitude!),
-            _mapController.camera.zoom,
-          );
-        }
-      });
+      final lat = location.latitude!;
+      final lng = location.longitude!;
+      if (_lastCenteredPoint == null ||
+          _lastCenteredPoint!.latitude != lat ||
+          _lastCenteredPoint!.longitude != lng) {
+        _lastCenteredPoint = LatLng(lat, lng);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _mapController.move(
+              _lastCenteredPoint!,
+              _mapController.camera.zoom,
+            );
+          }
+        });
+      }
     }
 
     final polylinePoints = location.polylinePoints;
@@ -101,7 +109,7 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Live GPS & Breadcrumbs'),
+        title: const Text('Live GPS Tracking'),
         actions: [
           IconButton(
             icon: const Icon(Icons.share_rounded),

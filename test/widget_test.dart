@@ -5,9 +5,11 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sos_app/main.dart';
+import 'package:sos_app/widgets/siren_icon.dart';
 
 void main() {
   testWidgets('App smoke test - RakshakConnectApp renders', (WidgetTester tester) async {
@@ -19,5 +21,29 @@ void main() {
 
     // Verify the app renders at least one widget.
     expect(find.byType(RakshakConnectApp), findsOneWidget);
+  });
+
+  testWidgets('SirenIcon renders custom vector beacon correctly', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SirenIcon(
+              color: Color(0xFFE65100),
+              size: 28,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(SirenIcon), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(SirenIcon),
+        matching: find.byType(CustomPaint),
+      ),
+      findsOneWidget,
+    );
   });
 }

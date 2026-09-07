@@ -11,12 +11,24 @@ class WidgetService {
 
   static const String _androidWidgetName = 'SosWidgetProvider';
 
+  Uri? _pendingWidgetUri;
+
+  Uri? get pendingWidgetUri => _pendingWidgetUri;
+
+  /// Returns and clears the pending widget launch URI (one-shot read on startup)
+  Uri? consumePendingWidgetUri() {
+    final u = _pendingWidgetUri;
+    _pendingWidgetUri = null;
+    return u;
+  }
+
   /// Initialize HomeWidget listeners for 1-tap deep links
   Future<void> initialize() async {
     try {
       // 1. Check if the app was launched by clicking the widget from terminated state
       final initialUri = await HomeWidget.initiallyLaunchedFromHomeWidget();
       if (initialUri != null) {
+        _pendingWidgetUri = initialUri;
         _handleWidgetUri(initialUri);
       }
 
@@ -54,7 +66,12 @@ class WidgetService {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final navState = RakshakConnectApp.navigatorKey.currentState;
-      if (navState == null) return;
+      if (navState == null) {
+        // App is still mounting initial route — preserve URI for SplashScreen to consume
+        _pendingWidgetUri = uri;
+        return;
+      }
+      _pendingWidgetUri = null;
 
       final host = uri.host.toLowerCase();
       final scheme = uri.scheme.toLowerCase();
@@ -82,6 +99,7 @@ class WidgetService {
               arguments: {
                 'name': 'Mom ❤️',
                 'phone': '+91 98765 43210',
+                'answered': false,
               },
             );
             break;

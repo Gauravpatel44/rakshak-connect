@@ -12,6 +12,7 @@ import '../../services/offline_queue_service.dart';
 import '../../services/widget_service.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/emergency_card.dart';
+import '../../widgets/siren_icon.dart';
 import '../contacts/contacts_screen.dart';
 import '../government/government_services_screen.dart';
 import '../history/alert_history_screen.dart';
@@ -196,32 +197,21 @@ class _HomePage extends StatelessWidget {
                   ),
                 ),
                 padding: const EdgeInsets.fromLTRB(20, 48, 20, 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hello, $firstName 👋',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Text(
-                          AppStrings.staySafe,
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
+                    Text(
+                      'Hello, $firstName 👋',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    const Icon(
-                      Icons.notifications_none_rounded,
-                      color: Colors.white,
-                      size: 28,
+                    const Text(
+                      AppStrings.staySafe,
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ],
                 ),
@@ -239,15 +229,6 @@ class _HomePage extends StatelessWidget {
                 SosButton(
                   onTap: () => _onSosTap(context),
                   isSending: isSending,
-                ),
-
-                // ── Panic Siren Quick Alarm Bar ───────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _PanicSirenBanner(
-                    onTap: () =>
-                        Navigator.of(context).pushNamed(AppRoutes.siren),
-                  ),
                 ),
 
                 const SizedBox(height: 28),
@@ -306,10 +287,13 @@ class _QuickCards extends StatelessWidget {
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.contacts),
         ),
         EmergencyCard(
-          title: l10n.t('liveLocation'),
-          icon: Icons.location_on_rounded,
-          color: const Color(0xFF4CAF50),
-          onTap: () => Navigator.of(context).pushNamed(AppRoutes.liveLocation),
+          title: l10n.t('panicSiren'),
+          customIcon: const SirenIcon(
+            color: Color(0xFFE65100),
+            size: 28,
+          ),
+          color: const Color(0xFFE65100),
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.siren),
         ),
         EmergencyCard(
           title: l10n.t('emergencyCall'),
@@ -318,10 +302,10 @@ class _QuickCards extends StatelessWidget {
           onTap: () => Navigator.of(context).pushNamed(AppRoutes.emergencyCall),
         ),
         EmergencyCard(
-          title: l10n.t('alertHistory'),
-          icon: Icons.history_rounded,
-          color: const Color(0xFFFF9800),
-          onTap: () => Navigator.of(context).pushNamed(AppRoutes.alertHistory),
+          title: l10n.t('liveLocation'),
+          icon: Icons.location_on_rounded,
+          color: const Color(0xFF4CAF50),
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.liveLocation),
         ),
         EmergencyCard(
           title: l10n.t('fakeCall'),
@@ -397,69 +381,3 @@ class _GovServiceTeaser extends StatelessWidget {
     );
   }
 }
-
-// ── Panic Siren Banner ──────────────────────────────────────────────────
-
-class _PanicSirenBanner extends StatelessWidget {
-  final VoidCallback onTap;
-  const _PanicSirenBanner({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFE65100), Color(0xFFD84315)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFE65100).withAlpha(80),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.white, size: 28),
-                SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Panic Siren & Strobe',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Loud audio alarm & flashing strobe light',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.arrow_forward_ios_rounded,
-                    color: Colors.white70, size: 16),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-

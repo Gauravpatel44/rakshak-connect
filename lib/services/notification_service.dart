@@ -1,6 +1,9 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
+import '../constants/app_routes.dart';
+import '../main.dart';
+
 /// Top-level handler for background FCM messages
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -36,25 +39,24 @@ class NotificationService {
 
     // BUG-19 fix: handle notification tap when app is in background.
     // Navigate to alert history for SOS alerts, or home for generic notifications.
-    // We defer the navigation to the next frame so we don't call Navigator
-    // inside an async stream callback (avoids use_build_context_synchronously lint).
+    // Uses RakshakConnectApp.navigatorKey directly to avoid context resolution issues.
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('FCM Opened: ${message.notification?.title}');
       final type = message.data['type'] as String?;
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final navigatorContext = messengerKey.currentContext;
-        if (navigatorContext == null) return;
+        final navState = RakshakConnectApp.navigatorKey.currentState;
+        if (navState == null) return;
 
         if (type == 'sos_alert') {
-          Navigator.of(navigatorContext).pushNamedAndRemoveUntil(
-            '/alert-history',
-            (route) => route.settings.name == '/home',
+          navState.pushNamedAndRemoveUntil(
+            AppRoutes.alertHistory,
+            (route) => route.settings.name == AppRoutes.home,
           );
         } else {
           // For generic notifications just ensure the user is on home
-          Navigator.of(navigatorContext).pushNamedAndRemoveUntil(
-            '/home',
+          navState.pushNamedAndRemoveUntil(
+            AppRoutes.home,
             (route) => false,
           );
         }

@@ -35,9 +35,12 @@ import 'screens/medical_id/edit_medical_id_screen.dart';
 import 'screens/siren/siren_screen.dart';
 import 'screens/fake_call/fake_call_setup_screen.dart';
 import 'screens/fake_call/fake_incoming_call_screen.dart';
+import 'screens/setup/firebase_setup_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/tips/emergency_tips_screen.dart';
 import 'services/notification_service.dart';
+import 'services/siren_notification_service.dart';
+import 'services/fake_call_notification_service.dart';
 import 'services/widget_service.dart';
 
 /// Entry point: initializes Firebase and starts the app
@@ -64,10 +67,19 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     await NotificationService().initialize();
-    await WidgetService().initialize();
     firebaseReady = true;
   } catch (e) {
     debugPrint('⚠️  Firebase not configured: $e');
+  }
+
+  // Local device services (Siren, Fake Call, Home Widget) run completely offline
+  // and must be initialized regardless of Firebase configuration.
+  try {
+    await SirenNotificationService.initialize();
+    await FakeCallNotificationService.initialize();
+    await WidgetService().initialize();
+  } catch (e) {
+    debugPrint('⚠️  Local services initialization error: $e');
   }
 
   runApp(RakshakConnectApp(firebaseReady: firebaseReady));
@@ -121,7 +133,7 @@ class RakshakConnectApp extends StatelessWidget {
             routes: {
               AppRoutes.splash: (_) => firebaseReady
                   ? const SplashScreen()
-                  : const _FirebaseSetupScreen(),
+                  : const FirebaseSetupScreen(),
               AppRoutes.login: (_) => const LoginScreen(),
               AppRoutes.register: (_) => const RegisterScreen(),
               AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
@@ -147,6 +159,7 @@ class RakshakConnectApp extends StatelessWidget {
                 return FakeIncomingCallScreen(
                   callerName: args?['name'] ?? 'Mom ❤️',
                   callerNumber: args?['phone'] ?? '+91 98765 43210',
+                  initialAnswered: args?['answered'] == true,
                 );
               },
               AppRoutes.medicalId: (_) => const MedicalIdScreen(),
@@ -160,93 +173,3 @@ class RakshakConnectApp extends StatelessWidget {
   }
 }
 
-// ── Firebase Setup Screen ─────────────────────────────────────────────
-
-class _FirebaseSetupScreen extends StatelessWidget {
-  const _FirebaseSetupScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFD32F2F),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              const Center(
-                child: Icon(Icons.shield_rounded, color: Colors.white, size: 80),
-              ),
-              const SizedBox(height: 20),
-              const Center(
-                child: Text(
-                  'Rakshak Connect',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.settings_rounded,
-                            color: Color(0xFFD32F2F), size: 24),
-                        SizedBox(width: 10),
-                        Text(
-                          'Firebase Setup Required',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    for (final step in const [
-                      '1️⃣  Go to console.firebase.google.com',
-                      '2️⃣  Create project → Add Android app',
-                      '      Package: com.gaurav.rakshak_connect',
-                      '3️⃣  Download google-services.json',
-                      '4️⃣  Place it in: android/app/',
-                      '5️⃣  Enable Email/Password Auth',
-                      '6️⃣  Create Firestore Database',
-                      '7️⃣  Update firebase_options.dart',
-                      '8️⃣  Hot restart the app ✅',
-                    ])
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(step,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF424242),
-                                height: 1.4)),
-                      ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              const Center(
-                child: Text(
-                  'UI is fully built & ready!\nConnect Firebase to unlock all features.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -97,9 +97,25 @@ class ContactProvider extends ChangeNotifier {
 
   // ── Toggle Favorite ───────────────────────────────
 
+  /// Mark [contact] as the single ⭐ Favorite contact.
+  /// If [contact] is already favorite, it is unfavorited (toggle-off).
+  /// Otherwise, any previously favorited contact is cleared first so there
+  /// is never more than one favorite at a time.
   Future<void> toggleFavorite(ContactModel contact) async {
-    final updated = contact.copyWith(isFavorite: !contact.isFavorite);
-    await updateContact(updated);
+    if (contact.isFavorite) {
+      // Already favorite → just unfavorite it
+      await updateContact(contact.copyWith(isFavorite: false));
+    } else {
+      // Clear the current favorite (if any) before setting the new one
+      final futures = <Future<bool>>[];
+      for (final c in _contacts) {
+        if (c.isFavorite && c.contactId != contact.contactId) {
+          futures.add(updateContact(c.copyWith(isFavorite: false)));
+        }
+      }
+      if (futures.isNotEmpty) await Future.wait(futures);
+      await updateContact(contact.copyWith(isFavorite: true));
+    }
   }
 
   // ── Search ────────────────────────────────────────

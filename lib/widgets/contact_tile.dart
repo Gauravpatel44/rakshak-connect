@@ -45,21 +45,85 @@ class ContactTile extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          radius: 24,
-          backgroundColor: AppColors.primary,
-          child: Text(
-            contact.initials,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: contact.isFavorite
+                  ? const Color(0xFFE65100)
+                  : AppColors.primary,
+              child: Text(
+                contact.initials,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ),
-          ),
+            if (contact.isFavorite)
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB300),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).cardColor,
+                      width: 2,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.star_rounded,
+                    size: 13,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
         ),
-        title: Text(
-          contact.name,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                contact.name,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (contact.isFavorite) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFB300).withAlpha(35),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: const Color(0xFFFFB300).withAlpha(120),
+                    width: 1,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.star_rounded, size: 12, color: Color(0xFFFFB300)),
+                    SizedBox(width: 2),
+                    Text(
+                      'Favorite',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFFFB300),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -181,24 +181,31 @@ class AlertProvider extends ChangeNotifier {
 
       if (_cancelled) return;
 
-      // 3. Send SMS + WhatsApp alerts directly via hardware SMS intent
-      for (final contact in contacts) {
-        if (_cancelled) return;
+      // 3. Send SMS to ALL contacts in a SINGLE multi-recipient draft.
+      //    (Looping launchUrl per contact was a race condition — each call
+      //    overwrote the previous SMS draft; only the last recipient appeared.)
+      await _smsService.sendBulkEmergencySms(
+        contacts: contacts,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        userName: userName,
+      );
 
-        await _smsService.sendEmergencySms(
-          contact: contact,
-          latitude: position.latitude,
-          longitude: position.longitude,
-          userName: userName,
-        );
-
-        if (!_isOfflineMode) {
+      // 4. Send WhatsApp ONLY to the ⭐ Favorite contact
+      if (!_isOfflineMode && !_cancelled) {
+        final favorite =
+            contacts.where((c) => c.isFavorite).firstOrNull;
+        if (favorite != null) {
           await _smsService.sendWhatsAppAlert(
-            contact: contact,
+            contact: favorite,
             latitude: position.latitude,
             longitude: position.longitude,
             userName: userName,
           );
+        } else {
+          // No favorite — WhatsApp skipped; inform the user non-intrusively
+          debugPrint(
+              '⚠️ AlertProvider: No favorite contact set — WhatsApp SOS skipped.');
         }
       }
 

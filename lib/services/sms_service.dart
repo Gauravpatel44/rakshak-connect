@@ -4,13 +4,21 @@ import '../models/contact_model.dart';
 
 /// Handles SMS and WhatsApp messaging for emergency alerts
 class SmsService {
-  /// Send emergency SMS to a contact with location link
-  Future<bool> sendEmergencySms({
-    required ContactModel contact,
+  /// Send emergency SMS to MULTIPLE contacts in a single native SMS draft.
+  ///
+  /// Uses a comma-separated `sms:` URI (RFC 5724) so the user sees ONE SMS
+  /// composer pre-filled with all recipients and the emergency message.
+  /// This avoids the race condition of calling [launchUrl] in a loop — each
+  /// call would overwrite the previous draft and only the last recipient would
+  /// end up in the SMS app.
+  Future<bool> sendBulkEmergencySms({
+    required List<ContactModel> contacts,
     required double latitude,
     required double longitude,
     required String userName,
   }) async {
+    if (contacts.isEmpty) return false;
+
     final locationLink = 'https://maps.google.com/?q=$latitude,$longitude';
     final message =
         '🆘 EMERGENCY ALERT!\n\n'
@@ -20,17 +28,47 @@ class SmsService {
         '-- Rakshak Connect';
 
     final encodedMessage = Uri.encodeComponent(message);
-    final smsUri = Uri.parse('sms:${contact.phone}?body=$encodedMessage');
+
+    // Comma-separate all phone numbers for a multi-recipient SMS draft.
+    // Supported by Google Messages, Samsung Messages, and most modern apps.
+    final phonesComma = contacts.map((c) => c.phone).join(',');
+    final smsUriComma = Uri.parse('sms:$phonesComma?body=$encodedMessage');
 
     try {
-      if (await canLaunchUrl(smsUri)) {
-        await launchUrl(smsUri);
+      if (await canLaunchUrl(smsUriComma)) {
+        await launchUrl(smsUriComma);
         return true;
       }
-      return false;
+
+      // Fallback for legacy OEM SMS apps that expect semicolon separation
+      final phonesSemicolon = contacts.map((c) => c.phone).join(';');
+      final smsUriSemicolon = Uri.parse('sms:$phonesSemicolon?body=$encodedMessage');
+      if (await canLaunchUrl(smsUriSemicolon)) {
+        await launchUrl(smsUriSemicolon);
+        return true;
+      }
+
+      // Final fallback: launch generic draft
+      return await sendGenericSms(message);
     } catch (_) {
       return false;
     }
+  }
+
+  /// Send emergency SMS to a SINGLE contact.
+  /// Prefer [sendBulkEmergencySms] for the SOS flow to avoid race conditions.
+  Future<bool> sendEmergencySms({
+    required ContactModel contact,
+    required double latitude,
+    required double longitude,
+    required String userName,
+  }) async {
+    return sendBulkEmergencySms(
+      contacts: [contact],
+      latitude: latitude,
+      longitude: longitude,
+      userName: userName,
+    );
   }
 
   /// Send emergency WhatsApp message to a contact

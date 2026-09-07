@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../constants/app_colors.dart';
 import '../../constants/app_strings.dart';
 import '../../models/government_service_model.dart';
 import '../../widgets/government_service_card.dart';
@@ -14,11 +15,11 @@ class GovernmentServicesScreen extends StatelessWidget {
       body: Column(
         children: [
           // ── Subtitle ─────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
                   AppStrings.govServicesSubtitle,
                   style: TextStyle(
@@ -30,7 +31,7 @@ class GovernmentServicesScreen extends StatelessWidget {
                 Text(
                   AppStrings.tapToCall,
                   style: TextStyle(
-                    color: Color(0xFF757575),
+                    color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
                 ),

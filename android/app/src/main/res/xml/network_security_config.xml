@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration — Rakshak Connect
+    Restricts the app to HTTPS-only connections in production.
+    Cleartext (HTTP) is only permitted for localhost (Flutter debug hot-reload).
+
+    This prevents man-in-the-middle attacks on API calls and satisfies
+    Google Play's network security policy requirements.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Trust system CAs (Firebase, Google APIs, mixkit CDN) -->
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+    <!-- Allow cleartext only for Flutter debug communication -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

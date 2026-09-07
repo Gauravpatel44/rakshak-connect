@@ -1,57 +1,79 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- ==================== PERMISSIONS ==================== -->
-    <!-- Internet -->
+
+    <!-- Internet: Firebase, maps, FCM, audio streaming -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!-- Location -->
+    <!-- Location: SOS alert GPS, live location map -->
+    <!-- ACCESS_BACKGROUND_LOCATION removed: no native foreground service exists
+         to support background execution; Dart-level streams are killed by OS when
+         the app goes background. Declaring it without a backing foreground service
+         is both non-functional and a high-risk Play Protect flag. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
 
-    <!-- Phone Call -->
+    <!-- Phone Call: url_launcher tel: scheme for emergency dialer -->
     <uses-permission android:name="android.permission.CALL_PHONE"/>
 
-    <!-- Vibration, Flashlight & WakeLock for background alarms/fake calls -->
+    <!-- Vibration: Siren pulse, fake call ring pattern -->
     <uses-permission android:name="android.permission.VIBRATE"/>
+
+    <!-- Flashlight: Panic siren strobe via torch_light package -->
     <uses-permission android:name="android.permission.FLASHLIGHT"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-feature android:name="android.hardware.camera.flash" android:required="false"/>
 
-    <!-- Microphone for Emergency Ambient Audio Recording -->
+    <!-- WakeLock: Keep CPU awake during audio playback (audioplayers) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+    <!-- FOREGROUND_SERVICE / FOREGROUND_SERVICE_MEDIA_PLAYBACK removed:
+         No foreground service is declared or implemented in this app.
+         audioplayers plays from the UI thread; it does not use a foreground service.
+         Declaring these without a corresponding <service> declaration is incorrect
+         and adds unnecessary risk flags. -->
+
+    <!-- Microphone: Emergency ambient audio recording during active SOS -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
-    <!-- Camera & Storage for profile photo -->
+    <!-- Camera: Profile photo capture (image_picker fromCamera) -->
     <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+
+    <!-- READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE removed:
+         Obsolete at API 33+ (minSdk=24, targetSdk=36). image_picker does not
+         need these on modern Android. -->
+
+    <!-- Photo gallery access for profile image picker (API 33+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
 
-    <!-- FCM notifications (Android 13+) -->
+    <!-- FCM push notifications (Android 13+ / API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- Boot receiver for FCM -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- AlarmManager exact timing for Fake Call scheduling (Android 13+ / API 33+).
+         Automatically granted — no user dialog required.
+         On Android 8–12, AlarmManager.setExactAndAllowWhileIdle() works without this. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
 
-    <!-- SMS -->
-    <uses-permission android:name="android.permission.SEND_SMS"/>
+    <!-- Full-screen intent: allows the fake call notification to overlay the lock screen.
+         Android 14+ (API 34): user may need to grant this in Settings → Special app access.
+         Android 8–13: automatically permitted for high-importance notifications. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
-    <!-- Contacts -->
+    <!-- RECEIVE_BOOT_COMPLETED removed: no custom BroadcastReceiver uses it.
+         Firebase Messaging manages its own restart handling internally. -->
+
+    <!-- SEND_SMS removed: SmsService uses url_launcher `sms:` URI intent which
+         opens the native messaging app. Android's SmsManager API is never called.
+         SEND_SMS is not needed and is a very high Play Protect risk signal. -->
+
+    <!-- Contacts: flutter_contacts openExternalPick() for adding emergency contacts -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
 
     <application
         android:label="Rakshak Connect"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
-
-        <!-- ==================== GOOGLE MAPS API KEY ==================== -->
-        <!-- IMPORTANT: Replace YOUR_GOOGLE_MAPS_API_KEY with your actual key -->
-        <!-- Get it from: https://console.cloud.google.com/ -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCtWiLgFQ8FSSxKEOlPm7xA3ZWFAzpqb-8"/>
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- ==================== MAIN ACTIVITY ==================== -->
         <activity
@@ -99,7 +121,7 @@
             android:value="2"/>
     </application>
 
-    <!-- Query for url_launcher (SMS, phone, browser, WhatsApp) -->
+    <!-- Query for url_launcher (SMS intent, phone dialer, browser, WhatsApp) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
