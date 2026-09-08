@@ -70,6 +70,23 @@
 # -- App Widget (native) ------------------------------------------------------
 -keep class com.gaurav.rakshak_connect.** { *; }
 
+# -- Flutter Local Notifications & Gson (Required for Scheduled Notifications) ---
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
+-dontwarn com.dexterous.flutterlocalnotifications.**
+
+# Gson TypeToken & Generic Signature Preservation
+# Fixes: IllegalStateException: TypeToken must be created with a type argument: new TypeToken<...>() {};
+-keep class com.google.gson.** { *; }
+-dontwarn com.google.gson.**
+-keep class * extends com.google.gson.reflect.TypeToken
+-keepclassmembers class * extends com.google.gson.reflect.TypeToken { *; }
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
 # -- General Android safety ---------------------------------------------------
 -keepattributes EnclosingMethod
 -keepattributes InnerClasses
