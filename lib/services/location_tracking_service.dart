@@ -2,10 +2,15 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/breadcrumb_model.dart';
 
 /// Service to handle continuous background-aware GPS breadcrumb tracking and cloud sync
 class LocationTrackingService {
+  static const String _breadcrumbsKey = 'persisted_breadcrumbs';
+  static const String _totalDistanceKey = 'persisted_total_distance';
+  static const int _maxBreadcrumbsLimit = 1000;
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   StreamSubscription<Position>? _positionSub;
 
@@ -17,7 +22,27 @@ class LocationTrackingService {
   List<BreadcrumbModel> get breadcrumbs => List.unmodifiable(_breadcrumbs);
   double get totalDistanceMeters => _totalDistanceMeters;
 
-  /// Start streaming GPS breadcrumbs every 5 meters
+  /// Initialize in-memory state with restored trail from local storage
+  void initializeWithSavedTrail(
+      List<BreadcrumbModel> trail, double totalDistance) {
+    _breadcrumbs.clear();
+    _breadcrumbs.addAll(trail);
+    _totalDistanceMeters = totalDistance;
+  }
+
+  /// Add the initial GPS fix as the first breadcrumb and persist
+  Future<void> addInitialBreadcrumb(BreadcrumbModel point) async {
+    if (_breadcrumbs.isEmpty) {
+      _breadcrumbs.add(point);
+      await saveTrailLocally();
+    }
+  }
+
+  DateTime? _lastDiskSaveTime;
+  DateTime? _lastCloudSyncTime;
+  double _lastSavedDistanceMeters = 0.0;
+
+  /// Start streaming GPS breadcrumbs every 3 meters
   void startTracking({
     required String userId,
     String? alertId,
@@ -26,14 +51,34 @@ class LocationTrackingService {
   }) {
     if (_isTracking) return;
     _isTracking = true;
+    _lastDiskSaveTime = null;
+    _lastCloudSyncTime = null;
+    _lastSavedDistanceMeters = _totalDistanceMeters;
 
     _positionSub?.cancel();
 
-    // Android & iOS high accuracy settings with 10m displacement filter
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Update every 10 meters for optimal battery & tracking balance
-    );
+    // High accuracy real-time navigation tracking settings with 3m displacement filter
+    late final LocationSettings locationSettings;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 3,
+        intervalDuration: const Duration(seconds: 2),
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      locationSettings = AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 3,
+        activityType: ActivityType.fitness,
+        pauseLocationUpdatesAutomatically: false,
+      );
+    } else {
+      locationSettings = const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 3,
+      );
+    }
 
     _positionSub = Geolocator.getPositionStream(
       locationSettings: locationSettings,
@@ -62,10 +107,31 @@ class LocationTrackingService {
         }
 
         _breadcrumbs.add(newPoint);
+        if (_breadcrumbs.length > _maxBreadcrumbsLimit) {
+          _breadcrumbs.removeAt(0);
+        }
+
+        // Real-time live UI update (fluid on every fix)
         onNewPoint(newPoint, _totalDistanceMeters);
 
-        // Sync with Firestore asynchronously
-        _syncBreadcrumbToFirestore(userId, alertId, newPoint);
+        // Throttled persistence: save to local disk every 15s or 25m delta
+        final now = DateTime.now();
+        final distanceDelta = (_totalDistanceMeters - _lastSavedDistanceMeters).abs();
+        if (_lastDiskSaveTime == null ||
+            now.difference(_lastDiskSaveTime!).inSeconds >= 15 ||
+            distanceDelta >= 25.0) {
+          _lastDiskSaveTime = now;
+          _lastSavedDistanceMeters = _totalDistanceMeters;
+          saveTrailLocally();
+        }
+
+        // Throttled cloud sync: write to Firestore every 15s or 25m delta (protects quota)
+        if (_lastCloudSyncTime == null ||
+            now.difference(_lastCloudSyncTime!).inSeconds >= 15 ||
+            distanceDelta >= 25.0) {
+          _lastCloudSyncTime = now;
+          _syncBreadcrumbToFirestore(userId, alertId, newPoint);
+        }
       },
       onError: (err) {
         debugPrint('⚠️ LocationTrackingService: GPS Stream Error: $err');
@@ -74,17 +140,63 @@ class LocationTrackingService {
     );
   }
 
-  /// Stop tracking and cancel GPS subscription
+  /// Stop tracking and cancel GPS subscription with final disk flush
   void stopTracking() {
     _isTracking = false;
     _positionSub?.cancel();
     _positionSub = null;
+    saveTrailLocally();
   }
 
-  /// Clear the local breadcrumbs trail
-  void clearTrail() {
+  /// Save breadcrumbs and cumulative distance to SharedPreferences
+  Future<void> saveTrailLocally() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final toSave = _breadcrumbs.length > _maxBreadcrumbsLimit
+          ? _breadcrumbs.sublist(_breadcrumbs.length - _maxBreadcrumbsLimit)
+          : _breadcrumbs;
+      final jsonList = toSave.map((b) => b.toJson()).toList();
+      await prefs.setStringList(_breadcrumbsKey, jsonList);
+      await prefs.setDouble(_totalDistanceKey, _totalDistanceMeters);
+    } catch (e) {
+      debugPrint('⚠️ LocationTrackingService: Failed to save trail locally: $e');
+    }
+  }
+
+  /// Load persisted breadcrumbs from SharedPreferences
+  Future<List<BreadcrumbModel>> loadSavedTrail() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonList = prefs.getStringList(_breadcrumbsKey);
+      if (jsonList == null || jsonList.isEmpty) return [];
+      return jsonList.map((s) => BreadcrumbModel.fromJson(s)).toList();
+    } catch (e) {
+      debugPrint('⚠️ LocationTrackingService: Failed to load saved trail: $e');
+      return [];
+    }
+  }
+
+  /// Load persisted cumulative distance from SharedPreferences
+  Future<double> loadSavedDistance() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getDouble(_totalDistanceKey) ?? 0.0;
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Clear both local in-memory trail and persistent storage
+  Future<void> clearTrail() async {
     _breadcrumbs.clear();
     _totalDistanceMeters = 0.0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_breadcrumbsKey);
+      await prefs.remove(_totalDistanceKey);
+    } catch (e) {
+      debugPrint('⚠️ LocationTrackingService: Failed to clear saved trail: $e');
+    }
   }
 
   /// Push individual breadcrumb to Firestore in background
@@ -136,6 +248,6 @@ class LocationTrackingService {
 
   void dispose() {
     stopTracking();
-    clearTrail();
+    // Do not clear the trail here — tracks must persist across app restarts!
   }
 }

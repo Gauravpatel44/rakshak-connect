@@ -44,10 +44,71 @@ class MainActivity : FlutterActivity() {
     // Hardware vibrator
     private var vibrator: Vibrator? = null
 
+    companion object {
+        private const val MAPPLS_STATUS_CHANNEL = "com.gaurav.rakshak_connect/mappls_status"
+        var mapplsInitStatus: Boolean = false
+        var mapplsInitError: String? = null
+        var mapplsDecryptedPackage: String? = null
+        var mapplsAppId: String? = null
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Note: Lock screen and wake flags are now set dynamically when a call arrives
-        // via setLockScreenVisibility, preventing sensitive data exposure over the lock screen.
+
+        // 1. Inspect Mappls licensing configuration safely for diagnostics
+        try {
+            val encClass = Class.forName("com.mappls.sdk.core.utils.EncryptionUtility")
+            val decMethod = encClass.getMethod("a", ByteArray::class.java)
+            val olfFiles = assets.list("")?.filter { it.endsWith(".a.olf") } ?: emptyList()
+            if (olfFiles.isNotEmpty()) {
+                val olfBytes = assets.open(olfFiles[0]).readBytes()
+                val decrypted = decMethod.invoke(null, olfBytes) as? String
+                if (decrypted != null) {
+                    val parts = decrypted.split("_")
+                    if (parts.isNotEmpty()) mapplsAppId = parts[0]
+                    if (parts.size >= 2) mapplsDecryptedPackage = parts[1]
+                }
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("MainActivity", "Mappls license inspection: ${t.message}")
+        }
+
+        // 2. Initialize Mappls SDK native context safely
+        try {
+            val mapplsClass = Class.forName("com.mappls.sdk.maps.Mappls")
+            val getInstanceMethod = mapplsClass.getMethod("getInstance", Context::class.java)
+            getInstanceMethod.invoke(null, applicationContext)
+            mapplsInitStatus = true
+            mapplsInitError = null
+            android.util.Log.i("MainActivity", "Mappls native context successfully initialized")
+        } catch (e: Throwable) {
+            val realCause = e.cause ?: e
+            mapplsInitStatus = false
+            mapplsInitError = realCause.message ?: realCause.javaClass.simpleName
+            android.util.Log.w("MainActivity", "Mappls init skipped/failed: $mapplsInitError")
+        }
+    }
+
+    private fun getAppSha256(): String {
+        return try {
+            val pm = packageManager
+            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val pi = pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                pi.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                val pi = pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+                @Suppress("DEPRECATION")
+                pi.signatures
+            }
+            if (signatures != null && signatures.isNotEmpty()) {
+                val md = java.security.MessageDigest.getInstance("SHA-256")
+                val digest = md.digest(signatures[0].toByteArray())
+                digest.joinToString(":") { String.format("%02X", it) }
+            } else ""
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     // ── MethodChannel ────────────────────────────────────────────────────────
@@ -123,6 +184,21 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
 
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MAPPLS_STATUS_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getMapplsStatus" -> {
+                        result.success(
+                            mapOf(
+                                "isInitialized" to mapplsInitStatus,
+                                "error" to (mapplsInitError ?: "")
+                            )
+                        )
+                    }
                     else -> result.notImplemented()
                 }
             }

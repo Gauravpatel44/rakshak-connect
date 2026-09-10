@@ -42,10 +42,15 @@ import 'services/notification_service.dart';
 import 'services/siren_notification_service.dart';
 import 'services/fake_call_notification_service.dart';
 import 'services/widget_service.dart';
+import 'package:mappls_gl/mappls_gl.dart' as mappls;
 
 /// Entry point: initializes Firebase and starts the app
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Enable Hybrid Composition for Mappls GL PlatformView on Android
+  // Prevents VirtualDisplay OpenGL surface deadlock / "Rakshak Connect isn't responding" ANR on Android 10+
+  mappls.MapplsMap.useHybridComposition = true;
 
   // ── Performance: prefer high-refresh-rate display ──────────
   await SystemChrome.setPreferredOrientations([

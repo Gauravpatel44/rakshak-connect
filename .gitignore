@@ -1,5 +1,6 @@
 # Miscellaneous
 *.class
+*.jar
 *.log
 *.pyc
 *.swp
@@ -11,6 +12,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+scratch/
 
 # IntelliJ & VS Code
 *.iml

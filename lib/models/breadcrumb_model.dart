@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -73,4 +74,22 @@ class BreadcrumbModel {
       'timestamp': Timestamp.fromDate(timestamp),
     };
   }
+
+  /// Convert to JSON-friendly map for local SharedPreferences persistence
+  Map<String, dynamic> toJsonMap() {
+    return {
+      'latitude': latitude,
+      'longitude': longitude,
+      'altitude': altitude,
+      'speed': speed,
+      'heading': heading,
+      'accuracy': accuracy,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  String toJson() => jsonEncode(toJsonMap());
+
+  factory BreadcrumbModel.fromJson(String source) =>
+      BreadcrumbModel.fromMap(jsonDecode(source) as Map<String, dynamic>);
 }

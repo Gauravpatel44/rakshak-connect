@@ -17,6 +17,36 @@ class LocationProvider extends ChangeNotifier {
   List<BreadcrumbModel> _breadcrumbs = [];
   double _totalDistanceMeters = 0.0;
 
+  LocationProvider() {
+    _loadSavedTrail();
+  }
+
+  /// Restore persisted trail and distance from local storage on app startup
+  Future<void> _loadSavedTrail() async {
+    final savedTrail = await _trackingService.loadSavedTrail();
+    final savedDistance = await _trackingService.loadSavedDistance();
+    if (savedTrail.isNotEmpty) {
+      _breadcrumbs = List.from(savedTrail);
+      _totalDistanceMeters = savedDistance;
+      _trackingService.initializeWithSavedTrail(savedTrail, savedDistance);
+
+      final last = savedTrail.last;
+      _currentPosition = Position(
+        latitude: last.latitude,
+        longitude: last.longitude,
+        timestamp: last.timestamp,
+        altitude: last.altitude,
+        altitudeAccuracy: 0.0,
+        heading: last.heading,
+        headingAccuracy: 0.0,
+        speed: last.speed,
+        speedAccuracy: 0.0,
+        accuracy: last.accuracy,
+      );
+      notifyListeners();
+    }
+  }
+
   // ── Getters ───────────────────────────────────────
   Position? get currentPosition => _currentPosition;
   bool get isLoading => _isLoading;
@@ -67,13 +97,10 @@ class LocationProvider extends ChangeNotifier {
           ? _currentPosition!.longitude.toStringAsFixed(4)
           : '--';
 
-  /// Formatted total distance string
+  /// Formatted total distance string (always in km)
   String get totalDistanceString {
-    if (_totalDistanceMeters < 1000) {
-      return '${_totalDistanceMeters.toStringAsFixed(0)} m';
-    } else {
-      return '${(_totalDistanceMeters / 1000).toStringAsFixed(2)} km';
-    }
+    final km = _totalDistanceMeters / 1000.0;
+    return '${km.toStringAsFixed(2)} km';
   }
 
   // ── Single Fetch Location ─────────────────────────
@@ -86,18 +113,18 @@ class LocationProvider extends ChangeNotifier {
     try {
       _currentPosition = await _locationService.getCurrentPosition();
       if (_currentPosition != null && _breadcrumbs.isEmpty) {
-        // Add initial point as first breadcrumb
-        _breadcrumbs.add(
-          BreadcrumbModel(
-            latitude: _currentPosition!.latitude,
-            longitude: _currentPosition!.longitude,
-            altitude: _currentPosition!.altitude,
-            speed: _currentPosition!.speed,
-            heading: _currentPosition!.heading,
-            accuracy: _currentPosition!.accuracy,
-            timestamp: DateTime.now(),
-          ),
+        // Add initial point as first breadcrumb and persist
+        final initialPoint = BreadcrumbModel(
+          latitude: _currentPosition!.latitude,
+          longitude: _currentPosition!.longitude,
+          altitude: _currentPosition!.altitude,
+          speed: _currentPosition!.speed,
+          heading: _currentPosition!.heading,
+          accuracy: _currentPosition!.accuracy,
+          timestamp: DateTime.now(),
         );
+        _breadcrumbs.add(initialPoint);
+        await _trackingService.addInitialBreadcrumb(initialPoint);
       }
     } catch (e) {
       _error = e.toString();

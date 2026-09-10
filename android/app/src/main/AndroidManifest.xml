@@ -68,12 +68,20 @@
     <!-- Contacts: flutter_contacts openExternalPick() for adding emergency contacts -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
 
+    <!-- OpenGL ES 2.0: Required by Mappls GL native vector map rendering -->
+    <uses-feature android:glEsVersion="0x00020000" android:required="false"/>
+
     <application
         android:label="Rakshak Connect"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:networkSecurityConfig="@xml/network_security_config">
+
+        <!-- Legacy Apache HTTP client required by Mappls LMS & SDK on Android 9+ (API 28+) -->
+        <uses-library
+            android:name="org.apache.http.legacy"
+            android:required="false"/>
 
         <!-- ==================== MAIN ACTIVITY ==================== -->
         <activity

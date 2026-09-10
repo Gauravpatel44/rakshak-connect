@@ -21,6 +21,7 @@ android {
     compileSdk = 36
     ndkVersion = "28.2.13676358"
     buildToolsVersion = "36.0.0"
+    useLibrary("org.apache.http.legacy")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -63,6 +64,9 @@ android {
             )
         }
         debug {
+            if (keyPropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
         }
     }
@@ -81,4 +85,13 @@ flutter {
 dependencies {
     // Core library desugaring — required by flutter_local_notifications
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+tasks.register<Copy>("copyMapplsLicenses") {
+    from(projectDir)
+    into("src/main/assets")
+    include("*.olf", "*.conf")
+}
+tasks.named("preBuild") {
+    dependsOn("copyMapplsLicenses")
 }

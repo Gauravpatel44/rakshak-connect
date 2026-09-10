@@ -108,3 +108,11 @@
 
 -dontwarn javax.annotation.**
 -dontwarn org.codehaus.mojo.**
+
+# -- Mappls (MapmyIndia) SDK & Native GL Engine ------------------------------
+-keep class com.mappls.sdk.** { *; }
+-dontwarn com.mappls.sdk.**
+-keep class com.mappls.sdk.maps.GetStylesResponse { <fields>; <methods>; }
+-keep class com.mappls.sdk.maps.StyleData { <fields>; <methods>; }
+-keep class com.mapbox.** { *; }
+-dontwarn com.mapbox.**

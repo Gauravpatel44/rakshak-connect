@@ -17,8 +17,11 @@
 - **Offline Queue Sync:** In low-connectivity or no-internet zones, alerts are cached locally and automatically synchronized with Cloud Firestore upon reconnection.
 - **Ambient Audio Recording:** Automatically captures a 20-second ambient audio recording as emergency evidence and attaches it to the alert record.
 
-### 📍 2. Real-Time Location Breadcrumbs & Live GPS Radar
-- **Live Polyline Trail:** Interactive OpenStreetMap (`flutter_map`) rendered with a glowing neon dual-tone breadcrumb trail tracking movement.
+### 📍 2. Dual-Engine Live GPS Radar & Breadcrumb Tracking
+- **Dual Vector & Tile Mapping:** Seamless 1-tap switching between **Mappls (MapmyIndia)** high-precision Indian vector maps and **OpenStreetMap (OSM)**.
+- **Live Polyline Trail:** Glowing neon dual-tone breadcrumb trail with movement-type detection (Walking, Running, Driving) and offline persistent cache.
+- **Safe Places POI Radar:** Instant real-time discovery of nearby **Police Stations**, **Hospitals**, **Fire Stations**, and **Safe Shelters** with custom pinpoint badges and quick actions.
+- **Accurate Road Routing:** Real turn-by-turn road navigation powered by Mappls Direction API / OSRM with distance in **km** and trip duration, avoiding direct Euclidean lines over buildings.
 - **Telemetry HUD Drawer:** Real-time speedometer (km/h), GPS accuracy radius, total distance traveled, and dynamic compass heading indicator.
 
 ### 🛡️ 3. Native Android Home Screen Quick SOS Widget (AppWidget)
@@ -88,17 +91,22 @@ flutter pub get
    android/app/google-services.json
    ```
 
-### 5. Run the Application
+### 5. Run & Build the Application
 ```bash
 # Run in debug mode on connected Android device/emulator
 flutter run
 
-# Build release APK
+# Build optimized split release APKs (Recommended: saves ~60% size per architecture)
+flutter build apk --split-per-abi
+
+# Build unified fat release APK
 flutter build apk --release
 ```
 
-The compiled release APK will be located at:
-`build/app/outputs/flutter-apk/app-release.apk`
+The compiled release APKs will be located at:
+- `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` (Modern 64-bit phones)
+- `build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk` (Older 32-bit phones)
+- `build/app/outputs/flutter-apk/app-x86_64-release.apk` (Emulators & tablets)
 
 ---
 
@@ -107,21 +115,21 @@ The compiled release APK will be located at:
 ```text
 lib/
 ├── constants/       # AppColors, AppStrings, AppRoutes, Theme data
-├── localization/    # Multi-language translations & delegates
-├── models/          # AlertModel, ContactModel, MedicalProfileModel, BreadcrumbModel
-├── providers/       # AuthProvider, ContactProvider, AlertProvider, LocationProvider, etc.
+├── localization/    # Multi-language translations & delegates (7 Indian languages)
+├── models/          # AlertModel, ContactModel, MedicalProfileModel, BreadcrumbModel, SafePlaceModel
+├── providers/       # AuthProvider, ContactProvider, AlertProvider, LocationProvider
 ├── screens/
 │   ├── auth/        # Login, Signup, OTP Verification
 │   ├── contacts/    # Emergency Contacts List & CRUD
 │   ├── fake_call/   # Setup & Simulated Incoming Call Screen
 │   ├── history/     # Alert History with 3-state filter engine
 │   ├── home/        # Dashboard with SOS trigger & quick cards
-│   ├── location/    # Real-Time OpenStreetMap Breadcrumb Radar
+│   ├── location/    # Dual-Engine Live Radar (Mappls & OSM) + Safe Places Drawer
 │   ├── medical_id/  # ICE Profile display & edit forms
 │   ├── siren/       # Panic Alarm & Flashlight Strobe
 │   └── splash/      # Animated splash screen
-├── services/        # Firestore, SMS, GPS Tracking, Audio Recorder, WidgetService
-└── widgets/         # Reusable UI components & custom cards
+├── services/        # Firestore, SMS, GPS Tracking, Audio Recorder, RoutingService, SafePlacesService
+└── widgets/         # Reusable UI components, Radar Drawer, Quick Cards
 ```
 
 ---
