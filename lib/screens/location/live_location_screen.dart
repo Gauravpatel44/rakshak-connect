@@ -73,20 +73,14 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
   SafePlaceType? _lastFetchedCategory;
   int _placesRequestId = 0;
 
-  /// Returns currently resolved safe places (prioritizing real Mappls POIs, falling back if loading)
+  /// Returns currently resolved safe places (only real fetched POIs, never hardcoded mock places)
   List<SafePlaceModel> _getCurrentSafePlaces(LocationProvider location) {
     if (_realSafePlaces.isNotEmpty) {
       return _selectedCategory == null
           ? _realSafePlaces
           : _realSafePlaces.where((p) => p.type == _selectedCategory).toList();
     }
-    return location.hasLocation
-        ? _safePlacesService.getNearbySafePlaces(
-            userLat: location.latitude!,
-            userLng: location.longitude!,
-            filterType: _selectedCategory,
-          )
-        : <SafePlaceModel>[];
+    return <SafePlaceModel>[];
   }
 
   /// Asynchronously fetch real POIs from Mappls Map API
@@ -134,6 +128,9 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
     setState(() {
       _selectedCategory = type;
       _selectedSafePlace = null;
+      if (type != null) {
+        _isDrawerExpanded = true;
+      }
     });
     final location = context.read<LocationProvider>();
     if (location.hasLocation) {
@@ -395,11 +392,17 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
       });
     }
 
-    final showHorizontalCarousel = _selectedSafePlace == null && safePlaces.isNotEmpty;
-    final drawerBase = _selectedSafePlace != null
-        ? 210.0
-        : (_isDrawerExpanded ? 245.0 : 85.0);
-    final fabBottom = drawerBase + (showHorizontalCarousel ? 86.0 : 0.0);
+    final double drawerBase;
+    if (!_isDrawerExpanded) {
+      drawerBase = 54.0;
+    } else if (_selectedSafePlace != null) {
+      drawerBase = 220.0;
+    } else if (_selectedCategory != null) {
+      drawerBase = 350.0;
+    } else {
+      drawerBase = 205.0;
+    }
+    final fabBottom = drawerBase + 12.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -662,13 +665,6 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
                 child: Row(
                   children: [
                     _buildCategoryChip(
-                      label: _isLoadingPlaces ? 'Loading...' : 'All (${safePlaces.length})',
-                      isSelected: _selectedCategory == null,
-                      onTap: () => _onCategoryFilterSelected(null),
-                      isDark: isDark,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildCategoryChip(
                       label: '🚓 Police',
                       isSelected: _selectedCategory == SafePlaceType.police,
                       onTap: () => _onCategoryFilterSelected(
@@ -860,21 +856,12 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
             ),
           ),
 
-          // ── Floating Horizontal Safe Places Carousel (Google Maps Style) ──
-          if (showHorizontalCarousel)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: drawerBase + 6,
-              child: _buildHorizontalSafePlacesBar(safePlaces, location, isDark),
-            ),
-
-          // ── Bottom Sheet Layer: Collapsible Telemetry or Selected Place Card ──
+          // ── Bottom Drawer Layer: Safe Places Cards & Telemetry / Selected Place ──
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: _buildCollapsibleTrackingDrawer(location, isDark),
+            child: _buildCollapsibleTrackingDrawer(location, safePlaces, isDark),
           ),
         ],
       ),
@@ -1509,157 +1496,28 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
     );
   }
 
-  // ── Floating Horizontal Safe Places Carousel (Google Maps Style) ─
-
-  Widget _buildHorizontalSafePlacesBar(
-    List<SafePlaceModel> safePlaces,
-    LocationProvider location,
-    bool isDark,
-  ) {
-    return SizedBox(
-      height: 74,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        itemCount: safePlaces.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final place = safePlaces[index];
-          final distanceMeters = location.hasLocation
-              ? Geolocator.distanceBetween(
-                  location.latitude!,
-                  location.longitude!,
-                  place.latitude,
-                  place.longitude,
-                )
-              : 0.0;
-          final distStr = SafePlacesService.formatDistance(distanceMeters);
-
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => _onSelectSafePlace(place),
-              child: Container(
-                width: 230,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF1E293B).withAlpha(240)
-                      : Colors.white.withAlpha(245),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark ? Colors.white12 : Colors.black12,
-                    width: 1,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: place.color.withAlpha(25),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(place.icon, color: place.color, size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            place.name,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Text(
-                                distStr,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0097A7),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  place.address,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: isDark ? Colors.white60 : Colors.black54,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () => _startInAppNavigation(place),
-                        child: Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF00E5FF).withAlpha(25),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.directions_rounded,
-                            size: 16,
-                            color: Color(0xFF0097A7),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ── Bottom Drawer (Collapsible: Selected Place Card OR Telemetry) ─
+  // ── Integrated Safe Places & Telemetry Collapsible Drawer ────────
 
   Widget _buildCollapsibleTrackingDrawer(
     LocationProvider location,
+    List<SafePlaceModel> safePlaces,
     bool isDark,
   ) {
     return GestureDetector(
       onVerticalDragEnd: (details) {
         if (details.primaryVelocity != null) {
-          if (details.primaryVelocity! > 200) {
+          if (details.primaryVelocity! > 150) {
+            // Drag down -> move drawer down
             setState(() => _isDrawerExpanded = false);
-          } else if (details.primaryVelocity! < -200) {
+          } else if (details.primaryVelocity! < -150) {
+            // Drag up -> expand drawer
             setState(() => _isDrawerExpanded = true);
           }
         }
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -1673,10 +1531,563 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
         ),
         child: _selectedSafePlace != null
             ? _buildSelectedPlaceDrawerCard(_selectedSafePlace!, location, isDark)
-            : _buildTelemetryDrawerContent(location, isDark),
+            : (_selectedCategory != null
+                ? _buildCategoryVerticalDrawer(safePlaces, location, isDark)
+                : _buildTelemetryDrawerContent(location, isDark)),
       ),
     );
   }
+
+  String _getCategoryTitle(SafePlaceType type) {
+    switch (type) {
+      case SafePlaceType.police:
+        return 'Police Stations';
+      case SafePlaceType.hospital:
+        return 'Hospitals & Clinics';
+      case SafePlaceType.fireStation:
+        return 'Fire Stations';
+      case SafePlaceType.safeShelter:
+        return 'Emergency Shelters';
+    }
+  }
+
+  IconData _getCategoryIcon(SafePlaceType type) {
+    switch (type) {
+      case SafePlaceType.police:
+        return Icons.local_police_rounded;
+      case SafePlaceType.hospital:
+        return Icons.local_hospital_rounded;
+      case SafePlaceType.fireStation:
+        return Icons.local_fire_department_rounded;
+      case SafePlaceType.safeShelter:
+        return Icons.shield_rounded;
+    }
+  }
+
+  Color _getCategoryColor(SafePlaceType type) {
+    switch (type) {
+      case SafePlaceType.police:
+        return const Color(0xFF1E88E5);
+      case SafePlaceType.hospital:
+        return const Color(0xFFE53935);
+      case SafePlaceType.fireStation:
+        return const Color(0xFFFB8C00);
+      case SafePlaceType.safeShelter:
+        return const Color(0xFF8E24AA);
+    }
+  }
+
+  /// Google Maps-inspired Vertical Drawer displayed when an upper feature is selected
+  Widget _buildCategoryVerticalDrawer(
+    List<SafePlaceModel> safePlaces,
+    LocationProvider location,
+    bool isDark,
+  ) {
+    final category = _selectedCategory!;
+    final categoryTitle = _getCategoryTitle(category);
+    final categoryIcon = _getCategoryIcon(category);
+    final categoryColor = _getCategoryColor(category);
+
+    // ── Collapsed State (The Drawer Moved Down) ──
+    if (!_isDrawerExpanded) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _isDrawerExpanded = true),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Grab handle
+              Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withAlpha(100),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: categoryColor.withAlpha(25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(categoryIcon, color: categoryColor, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    categoryTitle,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: categoryColor.withAlpha(22),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _isLoadingPlaces ? 'Loading...' : '${safePlaces.length} nearby',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: categoryColor,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.keyboard_arrow_up_rounded,
+                      size: 22,
+                      color: Colors.grey,
+                    ),
+                    tooltip: 'Expand Places List',
+                    onPressed: () => setState(() => _isDrawerExpanded = true),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
+                    tooltip: 'Clear Category',
+                    onPressed: () => _onCategoryFilterSelected(null),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ── Expanded State: Google Maps Style Vertical Places Drawer ──
+    return SizedBox(
+      height: 350,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Grab handle
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              margin: const EdgeInsets.only(top: 8, bottom: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey.withAlpha(100),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Drawer Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: categoryColor.withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(categoryIcon, color: categoryColor, size: 17),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Text(
+                        categoryTitle,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: categoryColor.withAlpha(20),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _isLoadingPlaces ? 'Searching...' : '${safePlaces.length} found',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: categoryColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Move Down button (arrow only)
+                IconButton(
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 22,
+                    color: Colors.grey,
+                  ),
+                  tooltip: 'Move Down / Show Map',
+                  onPressed: () => setState(() => _isDrawerExpanded = false),
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                  tooltip: 'Close Category Drawer',
+                  onPressed: () => _onCategoryFilterSelected(null),
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                ),
+              ],
+            ),
+          ),
+
+          Divider(
+            height: 10,
+            thickness: 1,
+            color: isDark ? Colors.white12 : Colors.black.withAlpha(15),
+          ),
+
+          // Vertical Place List / Loading / Empty State
+          Expanded(
+            child: _isLoadingPlaces
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: categoryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Searching nearby $categoryTitle...',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : safePlaces.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              categoryIcon,
+                              size: 36,
+                              color: Colors.grey.withAlpha(120),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No $categoryTitle found within 10 km',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Try moving the map or checking another category',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: isDark ? Colors.white38 : Colors.black38,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                        itemCount: safePlaces.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          return _buildVerticalPlaceCard(
+                            place: safePlaces[index],
+                            location: location,
+                            isDark: isDark,
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Google Maps-style Place Card inside the Vertical Category Drawer
+  Widget _buildVerticalPlaceCard({
+    required SafePlaceModel place,
+    required LocationProvider location,
+    required bool isDark,
+  }) {
+    final distanceMeters = location.hasLocation
+        ? Geolocator.distanceBetween(
+            location.latitude!,
+            location.longitude!,
+            place.latitude,
+            place.longitude,
+          )
+        : 0.0;
+    final distanceStr = SafePlacesService.formatDistance(distanceMeters);
+    final isNavigatingToThis = _activeNavigationDestination?.id == place.id;
+    final isSelected = _selectedSafePlace?.id == place.id;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? (isSelected
+                ? const Color(0xFF1E293B)
+                : const Color(0xFF1E293B).withAlpha(180))
+            : (isSelected ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isSelected
+              ? AppColors.primary
+              : (isDark ? Colors.white12 : Colors.black.withAlpha(20)),
+          width: isSelected ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(isDark ? 25 : 8),
+            blurRadius: 4,
+            offset: const Offset(0, 1.5),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _onSelectSafePlace(place),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: place.color.withAlpha(25),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(place.icon, color: place.color, size: 19),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            place.name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                distanceStr,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0097A7),
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '•',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isDark ? Colors.white38 : Colors.black38,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  place.statusText,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF388E3C),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            place.address,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isDark ? Colors.white60 : Colors.black54,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Action Buttons Row (Directions + Call + Pin)
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: SizedBox(
+                        height: 32,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            if (isNavigatingToThis) {
+                              _clearInAppNavigation();
+                            } else {
+                              _startInAppNavigation(place);
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isNavigatingToThis
+                                ? const Color(0xFFD32F2F)
+                                : const Color(0xFF0097A7),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                          icon: _isLoadingRoute && isNavigatingToThis
+                              ? const SizedBox(
+                                  width: 13,
+                                  height: 13,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(
+                                  isNavigatingToThis
+                                      ? Icons.close_rounded
+                                      : Icons.directions_rounded,
+                                  size: 15,
+                                ),
+                          label: Text(
+                            _isLoadingRoute && isNavigatingToThis
+                                ? 'ROUTING...'
+                                : isNavigatingToThis
+                                    ? 'CANCEL'
+                                    : 'DIRECTIONS',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        height: 32,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _callSafePlace(place.phoneNumber),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF388E3C),
+                            side: const BorderSide(
+                              color: Color(0xFF388E3C),
+                              width: 1.1,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.phone_rounded, size: 13),
+                          label: const Text(
+                            'CALL',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: IconButton(
+                        onPressed: () => _onSelectSafePlace(place),
+                        tooltip: 'Show on Map',
+                        style: IconButton.styleFrom(
+                          backgroundColor: isDark
+                              ? Colors.white.withAlpha(15)
+                              : Colors.black.withAlpha(10),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: const Icon(
+                          Icons.place_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   /// Detailed Card inside Drawer when a Safe Place is selected
   Widget _buildSelectedPlaceDrawerCard(
@@ -1695,8 +2106,73 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
     final distanceStr = SafePlacesService.formatDistance(distanceMeters);
     final isNavigatingToThis = _activeNavigationDestination?.id == place.id;
 
+    // Collapsed state when drawer is moved down while a place is selected
+    if (!_isDrawerExpanded) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _isDrawerExpanded = true),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Grab handle
+              Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withAlpha(100),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: place.color.withAlpha(25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(place.icon, color: place.color, size: 15),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      place.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    distanceStr,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0097A7),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 22, color: Colors.grey),
+                    tooltip: 'Expand Details',
+                    onPressed: () => setState(() => _isDrawerExpanded = true),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1706,7 +2182,7 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
             child: Container(
               width: 38,
               height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(
                 color: Colors.grey.withAlpha(100),
                 borderRadius: BorderRadius.circular(2),
@@ -1714,7 +2190,7 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
             ),
           ),
 
-          // Category Badge, Distance & Close button
+          // Category Badge, Distance & Actions (Move Down + Close)
           Row(
             children: [
               Container(
@@ -1764,26 +2240,36 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
                 ),
               ),
               const Spacer(),
+              // Move Down button
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 22, color: Colors.grey),
+                tooltip: 'Move Down / Show Map',
+                onPressed: () => setState(() => _isDrawerExpanded = false),
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(4),
+              ),
+              const SizedBox(width: 4),
               // Close / Deselect button
               IconButton(
                 icon: const Icon(Icons.close_rounded,
                     size: 20, color: Colors.grey),
-                tooltip: 'Back to Live Telemetry',
+                tooltip: 'Back to Safe Places',
                 onPressed: () {
                   setState(() => _selectedSafePlace = null);
                 },
                 constraints: const BoxConstraints(),
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.all(4),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
 
           // Place Name
           Text(
             place.name,
             style: const TextStyle(
-              fontSize: 17,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.2,
             ),
@@ -1794,11 +2280,11 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
           Text(
             '${place.address} • ${place.statusText}',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11.5,
               color: isDark ? Colors.white70 : Colors.black54,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
           // Action Buttons: In-App Directions & Call
           Row(
@@ -1817,9 +2303,9 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
                     backgroundColor: isNavigatingToThis
                         ? const Color(0xFFD32F2F)
                         : const Color(0xFF0097A7),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   icon: _isLoadingRoute && isNavigatingToThis
@@ -1836,6 +2322,7 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
                               ? Icons.close_rounded
                               : Icons.alt_route_rounded,
                           color: Colors.white,
+                          size: 18,
                         ),
                   label: Text(
                     _isLoadingRoute && isNavigatingToThis
@@ -1846,30 +2333,32 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
+                      fontSize: 12,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 flex: 1,
                 child: OutlinedButton.icon(
                   onPressed: () => _callSafePlace(place.phoneNumber),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     side: const BorderSide(
                         color: Color(0xFF388E3C), width: 1.5),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   icon: const Icon(Icons.phone_rounded,
-                      color: Color(0xFF388E3C), size: 18),
+                      color: Color(0xFF388E3C), size: 16),
                   label: const Text(
                     'CALL',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF388E3C),
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -1881,258 +2370,292 @@ class _LiveLocationScreenState extends State<LiveLocationScreen>
     );
   }
 
-  /// Live Telemetry Content shown when no safe place is selected
+  /// Live Telemetry Content shown when no category/place is selected (No horizontal cards)
   Widget _buildTelemetryDrawerContent(
     LocationProvider location,
     bool isDark,
   ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // ── Drag Handle & Mini-HUD Header ──
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            setState(() => _isDrawerExpanded = !_isDrawerExpanded);
-          },
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-            child: Column(
-              children: [
-                // Grab Handle
-                Container(
-                  width: 40,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withAlpha(100),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
+    // ── Collapsed State (The Drawer Moved Down) ──
+    if (!_isDrawerExpanded) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _isDrawerExpanded = true),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Grab handle
+              Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withAlpha(100),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-
-                // Collapsed Bar (Google Maps style Mini-HUD)
-                if (!_isDrawerExpanded)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2, bottom: 8),
-                    child: Row(
-                      children: [
-                        // Live Status Indicator
-                        Container(
-                          width: 10,
-                          height: 10,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: location.isTracking
-                                ? const Color(0xFF43A047)
-                                : const Color(0xFFE53935),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (location.isTracking
-                                        ? const Color(0xFF43A047)
-                                        : const Color(0xFFE53935))
-                                    .withAlpha(120),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          location.isTracking
-                              ? 'Tracking Active'
-                              : 'Tracking Paused',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const Spacer(),
-                        // Speed & Distance mini pill badges
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E88E5).withAlpha(20),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${location.currentSpeedKmh.toStringAsFixed(1)} km/h',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E88E5),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE53935).withAlpha(20),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            location.totalDistanceString,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFE53935),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.keyboard_arrow_up_rounded,
-                          size: 22,
-                          color: Colors.grey,
+              ),
+              Row(
+                children: [
+                  // Live tracking dot
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: location.isTracking
+                          ? const Color(0xFF43A047)
+                          : const Color(0xFFE53935),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (location.isTracking
+                                  ? const Color(0xFF43A047)
+                                  : const Color(0xFFE53935))
+                              .withAlpha(140),
+                          blurRadius: 6,
                         ),
                       ],
                     ),
                   ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  Text(
+                    location.isTracking ? 'Tracking Active' : 'Tracking Paused',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Movement Mode Chip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(22),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      location.movementMode,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  // Speed badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E88E5).withAlpha(20),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${location.currentSpeedKmh.toStringAsFixed(0)} km/h',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E88E5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.keyboard_arrow_up_rounded,
+                    size: 22,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
+      );
+    }
 
-        // ── Expanded Content (Telemetry Grid & Primary Action Buttons) ──
-        AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOutCubic,
-          child: _isDrawerExpanded
-              ? Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Header title with minimize chevron
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'TELEMETRY & CONTROLS',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.8,
-                              color:
-                                  isDark ? Colors.white60 : Colors.black54,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              size: 22,
-                              color: Colors.grey,
-                            ),
-                            tooltip: 'Hide Tracking Info',
-                            onPressed: () {
-                              setState(() => _isDrawerExpanded = false);
-                            },
-                            constraints: const BoxConstraints(),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ],
+    // ── Expanded Drawer Content: Header, Telemetry & Controls (No Horizontal Cards) ──
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Grab Handle
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withAlpha(100),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Drawer Header: Title & "Move Down" button
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.gps_fixed_rounded, size: 12, color: AppColors.primary),
+                    SizedBox(width: 4),
+                    Text(
+                      'LIVE TELEMETRY',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                        color: AppColors.primary,
                       ),
-                      const SizedBox(height: 8),
-
-                      // Telemetry Grid
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _TelemetryCard(
-                              label: 'SPEED',
-                              value:
-                                  '${location.currentSpeedKmh.toStringAsFixed(1)} km/h',
-                              icon: Icons.speed_rounded,
-                              accentColor: const Color(0xFF1E88E5),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _TelemetryCard(
-                              label: 'DISTANCE',
-                              value: location.totalDistanceString,
-                              icon: Icons.route_rounded,
-                              accentColor: const Color(0xFFE53935),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _TelemetryCard(
-                              label: 'ACCURACY',
-                              value:
-                                  '±${location.currentAccuracy.toStringAsFixed(0)}m',
-                              icon: Icons.gps_fixed_rounded,
-                              accentColor: const Color(0xFF43A047),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Action Buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: ElevatedButton.icon(
-                              onPressed: _toggleTracking,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: location.isTracking
-                                    ? const Color(0xFFD32F2F)
-                                    : const Color(0xFF388E3C),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              icon: Icon(
-                                location.isTracking
-                                    ? Icons.stop_rounded
-                                    : Icons.play_arrow_rounded,
-                              ),
-                              label: Text(
-                                location.isTracking
-                                    ? 'PAUSE TRACKING'
-                                    : 'START LIVE TRACKING',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 1,
-                            child: OutlinedButton.icon(
-                              onPressed: location.hasLocation
-                                  ? () => _smsService.shareLocationLink(
-                                        location.latitude!,
-                                        location.longitude!,
-                                      )
-                                  : null,
-                              style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              icon: const Icon(Icons.share_rounded, size: 18),
-                              label: const Text('SHARE'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (location.isTracking
+                          ? const Color(0xFF43A047)
+                          : const Color(0xFFE53935))
+                      .withAlpha(20),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  location.isTracking ? 'ONLINE' : 'PAUSED',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    color: location.isTracking
+                        ? const Color(0xFF43A047)
+                        : const Color(0xFFE53935),
                   ),
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
+                ),
+              ),
+              const Spacer(),
+              // Move Down button (arrow only)
+              IconButton(
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 22,
+                  color: Colors.grey,
+                ),
+                tooltip: 'Move Down / Show Map',
+                onPressed: () => setState(() => _isDrawerExpanded = false),
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(4),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Telemetry Grid
+          Row(
+            children: [
+              Expanded(
+                child: _TelemetryCard(
+                  label: 'SPEED',
+                  value: '${location.currentSpeedKmh.toStringAsFixed(1)} km/h',
+                  icon: Icons.speed_rounded,
+                  accentColor: const Color(0xFF1E88E5),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TelemetryCard(
+                  label: 'DISTANCE',
+                  value: location.totalDistanceString,
+                  icon: Icons.route_rounded,
+                  accentColor: const Color(0xFFE53935),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TelemetryCard(
+                  label: 'ACCURACY',
+                  value: '±${location.currentAccuracy.toStringAsFixed(0)}m',
+                  icon: Icons.gps_fixed_rounded,
+                  accentColor: const Color(0xFF43A047),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Action Buttons: Pause/Start Tracking & Share
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _toggleTracking,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: location.isTracking
+                        ? const Color(0xFFD32F2F)
+                        : const Color(0xFF388E3C),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: Icon(
+                    location.isTracking
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: 17,
+                  ),
+                  label: Text(
+                    location.isTracking
+                        ? 'PAUSE TRACKING'
+                        : 'START LIVE TRACKING',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
+                child: OutlinedButton.icon(
+                  onPressed: location.hasLocation
+                      ? () => _smsService.shareLocationLink(
+                            location.latitude!,
+                            location.longitude!,
+                          )
+                      : null,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.share_rounded, size: 15),
+                  label: const Text(
+                    'SHARE',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

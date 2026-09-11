@@ -40,6 +40,8 @@ scratch/
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/app/src/debug/assets/
+android/app/src/release/assets/
 /android/local.properties
 /android/.gradle
 /android/captures/

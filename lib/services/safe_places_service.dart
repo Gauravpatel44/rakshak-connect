@@ -1,16 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mappls_gl/mappls_gl.dart' as mappls;
 import '../models/safe_place_model.dart';
 
 /// Service providing nearby verified safe places around the user's live coordinates
-/// using real Mappls (MapmyIndia) Nearby POI API with local caching and offline fallback
+/// using real Mappls (MapmyIndia) Nearby POI API and OpenStreetMap Overpass API.
+/// Never uses hardcoded mock locations.
 class SafePlacesService {
   // In-memory cache keyed by rounded coordinates bucket (~500m) and category
   static final Map<String, (DateTime, List<SafePlaceModel>)> _cache = {};
 
-  /// Asynchronously fetch real nearby emergency hubs and safe sanctuaries via Mappls Nearby API
+  /// Asynchronously fetch real nearby emergency hubs via Mappls Nearby API
+  /// with OpenStreetMap Overpass real data fallback. Returns empty list if none found.
   Future<List<SafePlaceModel>> fetchRealMapplsSafePlaces({
     required double userLat,
     required double userLng,
@@ -28,7 +32,7 @@ class SafePlacesService {
       }
     }
 
-    // 2. Cascading cache hit: If 'all' bucket is already cached, filter from it immediately (0ms latency, saves API quota)
+    // 2. Cascading cache hit: If 'all' bucket is already cached, filter from it immediately (0ms latency)
     if (filterType != null && _cache.containsKey(allBucketKey)) {
       final (cachedAt, allPlaces) = _cache[allBucketKey]!;
       if (DateTime.now().difference(cachedAt).inMinutes < 10 && allPlaces.isNotEmpty) {
@@ -46,9 +50,15 @@ class SafePlacesService {
       if (filterType != null) {
         final keyword = _keywordForType(filterType);
         final results = await _queryMapplsCategory(keyword, filterType, userLat, userLng);
-        fetchedPlaces.addAll(results);
+        if (results.isNotEmpty) {
+          fetchedPlaces.addAll(results);
+        } else {
+          // Secondary real query via OpenStreetMap Overpass API
+          final osmResults = await _queryOverpassCategory(filterType, userLat, userLng);
+          fetchedPlaces.addAll(osmResults);
+        }
       } else {
-        // Fetch all 4 emergency types concurrently
+        // Fetch all 4 emergency types concurrently via Mappls
         final futurePolice = _queryMapplsCategory('police', SafePlaceType.police, userLat, userLng);
         final futureHospital = _queryMapplsCategory('hospital', SafePlaceType.hospital, userLat, userLng);
         final futureFire = _queryMapplsCategory('fire station', SafePlaceType.fireStation, userLat, userLng);
@@ -57,6 +67,19 @@ class SafePlacesService {
         final results = await Future.wait([futurePolice, futureHospital, futureFire, futureShelter]);
         for (final list in results) {
           fetchedPlaces.addAll(list);
+        }
+
+        // If Mappls returns empty, query real OpenStreetMap Overpass API
+        if (fetchedPlaces.isEmpty) {
+          final osmPolice = _queryOverpassCategory(SafePlaceType.police, userLat, userLng);
+          final osmHospital = _queryOverpassCategory(SafePlaceType.hospital, userLat, userLng);
+          final osmFire = _queryOverpassCategory(SafePlaceType.fireStation, userLat, userLng);
+          final osmShelter = _queryOverpassCategory(SafePlaceType.safeShelter, userLat, userLng);
+
+          final osmResults = await Future.wait([osmPolice, osmHospital, osmFire, osmShelter]);
+          for (final list in osmResults) {
+            fetchedPlaces.addAll(list);
+          }
         }
       }
 
@@ -86,15 +109,11 @@ class SafePlacesService {
         return uniquePlaces;
       }
     } catch (e) {
-      debugPrint('SafePlacesService: Mappls Nearby fetch failed ($e), using local fallback');
+      debugPrint('SafePlacesService: Real safe places fetch error: $e');
     }
 
-    // Seamless fallback to verified stations around user's GPS
-    return getNearbySafePlaces(
-      userLat: userLat,
-      userLng: userLng,
-      filterType: filterType,
-    );
+    // Return empty list if no real places found. NEVER return hardcoded mock points!
+    return <SafePlaceModel>[];
   }
 
   /// Internal helper to invoke MapplsNearby for a single category
@@ -134,7 +153,7 @@ class SafePlacesService {
             phoneNumber: phone,
             address: (loc.placeAddress != null && loc.placeAddress!.trim().isNotEmpty)
                 ? loc.placeAddress!.trim()
-                : 'Near your current location',
+                : 'Near current location',
             statusText: loc.hourOfOperation?.isNotEmpty == true
                 ? loc.hourOfOperation!
                 : 'Verified Mappls Safety Point',
@@ -144,6 +163,67 @@ class SafePlacesService {
       }
     } catch (e) {
       debugPrint('SafePlacesService: MapplsNearby query ($keyword) error: $e');
+    }
+    return [];
+  }
+
+  /// Real OpenStreetMap Overpass query for emergency POIs around user location
+  Future<List<SafePlaceModel>> _queryOverpassCategory(
+    SafePlaceType type,
+    double userLat,
+    double userLng,
+  ) async {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 4);
+    try {
+      final tag = _osmTagForType(type);
+      // Query nodes and ways within 10km radius (capped to 20 results for fast response)
+      final query = '[out:json][timeout:4];(node[$tag](around:10000,$userLat,$userLng);way[$tag](around:10000,$userLat,$userLng););out center 20;';
+      final uri = Uri.parse('https://overpass-api.de/api/interpreter?data=${Uri.encodeComponent(query)}');
+      final request = await client.getUrl(uri);
+      final response = await request.close().timeout(const Duration(seconds: 4));
+      if (response.statusCode == 200) {
+        final jsonStr = await response.transform(utf8.decoder).join();
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        final elements = map['elements'] as List<dynamic>?;
+        if (elements != null) {
+          final List<SafePlaceModel> list = [];
+          for (final el in elements) {
+            final tags = el['tags'] as Map<String, dynamic>? ?? {};
+            final lat = (el['lat'] ?? el['center']?['lat']) as num?;
+            final lon = (el['lon'] ?? el['center']?['lon']) as num?;
+            if (lat == null || lon == null) continue;
+
+            final name = (tags['name'] as String?)?.trim() ??
+                (tags['name:en'] as String?)?.trim() ??
+                _defaultNameFor(type);
+            final phone = (tags['phone'] as String?)?.trim() ??
+                (tags['contact:phone'] as String?)?.trim() ??
+                _defaultPhoneFor(type);
+            final street = (tags['addr:street'] as String?)?.trim();
+            final city = (tags['addr:city'] as String?)?.trim();
+            final address = [?street, ?city].join(', ');
+
+            list.add(
+              SafePlaceModel(
+                id: 'osm_${type.name}_${el['id']}',
+                name: name,
+                type: type,
+                latitude: lat.toDouble(),
+                longitude: lon.toDouble(),
+                phoneNumber: phone,
+                address: address.isNotEmpty ? address : 'Near current location',
+                statusText: 'Verified OpenStreetMap POI',
+                is24x7: true,
+              ),
+            );
+          }
+          return list;
+        }
+      }
+    } catch (_) {
+    } finally {
+      client.close();
     }
     return [];
   }
@@ -158,6 +238,19 @@ class SafePlacesService {
         return 'fire station';
       case SafePlaceType.safeShelter:
         return 'shelter';
+    }
+  }
+
+  static String _osmTagForType(SafePlaceType type) {
+    switch (type) {
+      case SafePlaceType.police:
+        return '"amenity"="police"';
+      case SafePlaceType.hospital:
+        return '"amenity"~"hospital|clinic"';
+      case SafePlaceType.fireStation:
+        return '"amenity"="fire_station"';
+      case SafePlaceType.safeShelter:
+        return '"social_facility"="shelter"';
     }
   }
 
@@ -187,102 +280,6 @@ class SafePlacesService {
     }
   }
 
-  /// Synchronous fallback emergency hubs and safe sanctuaries around user GPS
-  List<SafePlaceModel> getNearbySafePlaces({
-    required double userLat,
-    required double userLng,
-    SafePlaceType? filterType,
-  }) {
-    final allPlaces = [
-      SafePlaceModel(
-        id: 'police_central',
-        name: 'City Central Police Station',
-        type: SafePlaceType.police,
-        latitude: userLat + 0.0030,
-        longitude: userLng + 0.0025,
-        phoneNumber: '112',
-        address: 'Sector 4, Main Highway Corridor',
-        statusText: '24/7 Beat Patrol • Rapid Response',
-      ),
-      SafePlaceModel(
-        id: 'hospital_apex',
-        name: 'Apex Emergency & Trauma Care',
-        type: SafePlaceType.hospital,
-        latitude: userLat - 0.0035,
-        longitude: userLng + 0.0030,
-        phoneNumber: '108',
-        address: 'Medical Enclave, Civil Lines',
-        statusText: '24/7 ICU & Level-1 Trauma Hub',
-      ),
-      SafePlaceModel(
-        id: 'police_women_booth',
-        name: 'Pink Safety Police Kiosk',
-        type: SafePlaceType.police,
-        latitude: userLat + 0.0018,
-        longitude: userLng - 0.0020,
-        phoneNumber: '1091',
-        address: 'Metro Gate 2, Public Plaza',
-        statusText: 'Women & Child SOS Helpdesk',
-      ),
-      SafePlaceModel(
-        id: 'fire_station_1',
-        name: 'Municipal Fire & Rescue Div 3',
-        type: SafePlaceType.fireStation,
-        latitude: userLat - 0.0042,
-        longitude: userLng - 0.0035,
-        phoneNumber: '101',
-        address: 'Industrial Ring Road, Sector 8',
-        statusText: 'Hazmat & Quick Response Team',
-      ),
-      SafePlaceModel(
-        id: 'shelter_community',
-        name: 'Rakshak Verified Safe Haven',
-        type: SafePlaceType.safeShelter,
-        latitude: userLat + 0.0038,
-        longitude: userLng - 0.0028,
-        phoneNumber: '112',
-        address: 'Community Center, City Park',
-        statusText: 'CCTV Monitored • Guarded Shelter',
-      ),
-      SafePlaceModel(
-        id: 'hospital_redcross',
-        name: 'Red Cross First-Aid Clinic',
-        type: SafePlaceType.hospital,
-        latitude: userLat + 0.0045,
-        longitude: userLng + 0.0038,
-        phoneNumber: '108',
-        address: 'Near Old Bus Terminal',
-        statusText: 'Emergency Pharmacy & Ambulances',
-      ),
-      SafePlaceModel(
-        id: 'police_chowki',
-        name: 'Highway Police Patrol Post',
-        type: SafePlaceType.police,
-        latitude: userLat - 0.0050,
-        longitude: userLng + 0.0042,
-        phoneNumber: '112',
-        address: 'National Highway Bypass Toll',
-        statusText: '24/7 Armed Response & Interceptor',
-      ),
-    ];
-
-    // Filter by type if specified
-    final filtered = filterType == null
-        ? allPlaces
-        : allPlaces.where((p) => p.type == filterType).toList();
-
-    // Sort by proximity to user (closest first)
-    filtered.sort((a, b) {
-      final distA = Geolocator.distanceBetween(
-          userLat, userLng, a.latitude, a.longitude);
-      final distB = Geolocator.distanceBetween(
-          userLat, userLng, b.latitude, b.longitude);
-      return distA.compareTo(distB);
-    });
-
-    return filtered;
-  }
-
   /// Format distance between user and place always in km (e.g. '0.4 km', '1.2 km')
   static String formatDistance(double meters) {
     final km = meters / 1000.0;
@@ -293,4 +290,3 @@ class SafePlacesService {
     }
   }
 }
-
